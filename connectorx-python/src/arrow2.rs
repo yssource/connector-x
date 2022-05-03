@@ -215,6 +215,9 @@ pub fn write_arrow<'a>(
         SourceType::BigQuery => {
             // TODO
         }
+        SourceType::Redshift => {
+            unimplemented!();
+        }
     }
 
     let (rbs, schema) = destination.arrow()?;

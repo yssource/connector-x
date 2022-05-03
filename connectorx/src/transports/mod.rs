@@ -24,11 +24,12 @@ mod oracle_arrow2;
 mod postgres_arrow;
 #[cfg(all(feature = "src_postgres", feature = "dst_arrow2"))]
 mod postgres_arrow2;
+#[cfg(all(feature = "src_redshift", feature = "dst_arrow"))]
+mod redshift_arrow;
 #[cfg(all(feature = "src_sqlite", feature = "dst_arrow"))]
 mod sqlite_arrow;
 #[cfg(all(feature = "src_sqlite", feature = "dst_arrow2"))]
 mod sqlite_arrow2;
-
 #[cfg(all(feature = "src_bigquery", feature = "dst_arrow"))]
 pub use bigquery_arrow::{BigQueryArrowTransport, BigQueryArrowTransportError};
 #[cfg(all(feature = "src_csv", feature = "dst_arrow"))]
@@ -53,6 +54,8 @@ pub use oracle_arrow2::{OracleArrow2Transport, OracleArrow2TransportError};
 pub use postgres_arrow::{PostgresArrowTransport, PostgresArrowTransportError};
 #[cfg(all(feature = "src_postgres", feature = "dst_arrow2"))]
 pub use postgres_arrow2::{PostgresArrow2Transport, PostgresArrow2TransportError};
+#[cfg(all(feature = "src_redshift", feature = "dst_arrow"))]
+pub use redshift_arrow::{RedshiftArrowTransport, RedshiftArrowTransportError};
 #[cfg(all(feature = "src_sqlite", feature = "dst_arrow"))]
 pub use sqlite_arrow::{SQLiteArrowTransport, SQLiteArrowTransportError};
 #[cfg(all(feature = "src_sqlite", feature = "dst_arrow2"))]

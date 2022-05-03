@@ -15,6 +15,8 @@ pub mod mysql;
 pub mod oracle;
 #[cfg(feature = "src_postgres")]
 pub mod postgres;
+#[cfg(feature = "src_redshift")]
+pub mod redshift;
 #[cfg(feature = "src_sqlite")]
 pub mod sqlite;
 

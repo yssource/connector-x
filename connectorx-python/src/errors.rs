@@ -65,6 +65,9 @@ pub enum ConnectorXPythonError {
     BigQuerySourceError(#[from] connectorx::sources::bigquery::BigQuerySourceError),
 
     #[error(transparent)]
+    RedshiftSourceError(#[from] connectorx::sources::redshift::RedshiftSourceError),
+
+    #[error(transparent)]
     ArrowDestinationError(#[from] connectorx::destinations::arrow::ArrowDestinationError),
 
     #[error(transparent)]
@@ -99,6 +102,9 @@ pub enum ConnectorXPythonError {
 
     #[error(transparent)]
     OracleArrow2TransportError(#[from] connectorx::transports::OracleArrow2TransportError),
+
+    #[error(transparent)]
+    RedshiftArrowTransportError(#[from] connectorx::transports::RedshiftArrowTransportError),
 
     #[error(transparent)]
     UrlDecodeError(#[from] FromUtf8Error),

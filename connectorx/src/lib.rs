@@ -168,6 +168,8 @@ pub mod prelude {
     pub use crate::sources::oracle::OracleSource;
     #[cfg(feature = "src_postgres")]
     pub use crate::sources::postgres::PostgresSource;
+    #[cfg(feature = "src_redshift")]
+    pub use crate::sources::redshift::RedshiftSource;
     #[cfg(feature = "src_sqlite")]
     pub use crate::sources::sqlite::SQLiteSource;
     pub use crate::sources::{PartitionParser, Produce, Source, SourcePartition};

@@ -207,6 +207,10 @@ pub fn write_arrow<'a>(
         }
         SourceType::BigQuery => {
             // TODO
+            unimplemented!();
+        }
+        SourceType::Redshift => {
+            unimplemented!();
         }
     }
 

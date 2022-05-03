@@ -1,5 +1,7 @@
 use crate::errors::{ConnectorXPythonError, Result};
 use anyhow::anyhow;
+use aws_config;
+use aws_sdk_redshiftdata;
 use connectorx::{
     sources::{
         bigquery::BigQueryDialect,
@@ -7,6 +9,7 @@ use connectorx::{
         mysql::{MySQLSourceError, MySQLTypeSystem},
         oracle::{connect_oracle, OracleDialect},
         postgres::{rewrite_tls_args, PostgresTypeSystem},
+        redshift::{fetch_sql_result, parse_redshift_config, submit_sql},
     },
     sql::{
         get_partition_range_query, get_partition_range_query_sep, single_col_partition_query,
@@ -21,6 +24,7 @@ use rust_decimal::{prelude::ToPrimitive, Decimal};
 use rust_decimal_macros::dec;
 use sqlparser::dialect::{MsSqlDialect, MySqlDialect, PostgreSqlDialect, SQLiteDialect};
 use std::convert::TryFrom;
+use std::sync::Arc;
 use tiberius::Client;
 use tokio::net::TcpStream;
 use tokio::runtime::Runtime;
@@ -34,6 +38,7 @@ pub enum SourceType {
     MsSQL,
     Oracle,
     BigQuery,
+    Redshift,
 }
 
 pub struct SourceConn {
@@ -73,6 +78,10 @@ impl TryFrom<&str> for SourceConn {
                 ty: SourceType::BigQuery,
                 conn: url,
             }),
+            "redshift" => Ok(SourceConn {
+                ty: SourceType::Redshift,
+                conn: url,
+            }),
             _ => unimplemented!("Connection: {} not supported!", conn),
         }
     }
@@ -87,6 +96,7 @@ impl SourceConn {
             SourceType::MsSQL => mssql_get_partition_range(&self.conn, query, col),
             SourceType::Oracle => oracle_get_partition_range(&self.conn, query, col),
             SourceType::BigQuery => bigquery_get_partition_range(&self.conn, query, col),
+            SourceType::Redshift => redshift_get_partition_range(&self.conn, query, col),
         }
     }
 
@@ -99,7 +109,7 @@ impl SourceConn {
         upper: i64,
     ) -> CXQuery<String> {
         let query = match self.ty {
-            SourceType::Postgres => {
+            SourceType::Postgres | SourceType::Redshift => {
                 single_col_partition_query(query, col, lower, upper, &PostgreSqlDialect {})?
             }
             SourceType::SQLite => {
@@ -453,4 +463,22 @@ fn bigquery_get_partition_range(conn: &Url, query: &str, col: &str) -> (i64, i64
     let max_v = query_result.get_i64(1)?.unwrap_or(0);
 
     (min_v, max_v)
+}
+
+#[throws(ConnectorXPythonError)]
+fn redshift_get_partition_range(conn: &Url, query: &str, col: &str) -> (i64, i64) {
+    let rt = Arc::new(Runtime::new().expect("Failed to create runtime"));
+    let config = parse_redshift_config(conn.as_str())?;
+    let range_query = get_partition_range_query(query, col, &PostgreSqlDialect {})?;
+
+    let shared_config = rt.block_on(aws_config::load_from_env());
+    let client = aws_sdk_redshiftdata::Client::new(&shared_config);
+
+    let id = submit_sql(range_query.as_str(), &client, &rt, &config);
+    let output = fetch_sql_result(id.as_str(), &client, &rt).unwrap();
+
+    let min_v = output.records().unwrap()[0][0].as_long_value().unwrap();
+    let max_v = output.records().unwrap()[0][1].as_long_value().unwrap();
+
+    (*min_v, *max_v)
 }
