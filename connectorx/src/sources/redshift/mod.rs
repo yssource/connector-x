@@ -18,6 +18,7 @@ use aws_sdk_redshiftdata;
 use aws_sdk_redshiftdata::client::Client;
 use aws_sdk_redshiftdata::model::StatusString;
 use aws_sdk_redshiftdata::output::GetStatementResultOutput;
+use chrono::NaiveDate;
 use fehler::{throw, throws};
 use log::debug;
 use sqlparser::dialect::PostgreSqlDialect;
@@ -361,6 +362,132 @@ impl<'r> Produce<'r, Option<i64>> for RedshiftSourceParser {
                 *val.as_long_value()
                     .map_err(|e| anyhow!("cannot get long value from field: {:?}", e))?,
             ),
+        }
+    }
+}
+
+impl<'r> Produce<'r, f64> for RedshiftSourceParser {
+    type Error = RedshiftSourceError;
+
+    #[throws(RedshiftSourceError)]
+    fn produce(&'r mut self) -> f64 {
+        let (row, col) = self.next_loc()?;
+        let val = &self
+            .output
+            .records()
+            .ok_or(RedshiftSourceError::GetRecordsFailed)?[row][col];
+        let sval = val
+            .as_string_value()
+            .map_err(|e| anyhow!("cannot get string value from field: {:?}", e))?;
+        sval.parse()
+            .map_err(|_| ConnectorXError::cannot_produce::<f64>(Some(sval.to_string())))?
+    }
+}
+
+impl<'r> Produce<'r, Option<f64>> for RedshiftSourceParser {
+    type Error = RedshiftSourceError;
+
+    #[throws(RedshiftSourceError)]
+    fn produce(&'r mut self) -> Option<f64> {
+        let (row, col) = self.next_loc()?;
+        let val = &self
+            .output
+            .records()
+            .ok_or(RedshiftSourceError::GetRecordsFailed)?[row][col];
+
+        match val.is_is_null() {
+            true => None,
+            false => {
+                let sval = val
+                    .as_string_value()
+                    .map_err(|e| anyhow!("cannot get string value from field: {:?}", e))?;
+                Some(
+                    sval.parse().map_err(|_| {
+                        ConnectorXError::cannot_produce::<f64>(Some(sval.to_string()))
+                    })?,
+                )
+            }
+        }
+    }
+}
+
+impl<'r> Produce<'r, &'r str> for RedshiftSourceParser {
+    type Error = RedshiftSourceError;
+
+    #[throws(RedshiftSourceError)]
+    fn produce(&'r mut self) -> &'r str {
+        let (row, col) = self.next_loc()?;
+        let val = &self
+            .output
+            .records()
+            .ok_or(RedshiftSourceError::GetRecordsFailed)?[row][col];
+        val.as_string_value()
+            .map_err(|e| anyhow!("cannot get string value from field: {:?}", e))?
+            .as_str()
+    }
+}
+
+impl<'r> Produce<'r, Option<&'r str>> for RedshiftSourceParser {
+    type Error = RedshiftSourceError;
+
+    #[throws(RedshiftSourceError)]
+    fn produce(&'r mut self) -> Option<&'r str> {
+        let (row, col) = self.next_loc()?;
+        let val = &self
+            .output
+            .records()
+            .ok_or(RedshiftSourceError::GetRecordsFailed)?[row][col];
+
+        match val.is_is_null() {
+            true => None,
+            false => Some(
+                val.as_string_value()
+                    .map_err(|e| anyhow!("cannot get long value from field: {:?}", e))?
+                    .as_str(),
+            ),
+        }
+    }
+}
+
+impl<'r> Produce<'r, NaiveDate> for RedshiftSourceParser {
+    type Error = RedshiftSourceError;
+
+    #[throws(RedshiftSourceError)]
+    fn produce(&'r mut self) -> NaiveDate {
+        let (row, col) = self.next_loc()?;
+        let val = &self
+            .output
+            .records()
+            .ok_or(RedshiftSourceError::GetRecordsFailed)?[row][col];
+        let date = val
+            .as_string_value()
+            .map_err(|e| anyhow!("cannot get string value from field: {:?}", e))?;
+        NaiveDate::parse_from_str(date, "%Y-%m-%d")
+            .map_err(|_| ConnectorXError::cannot_produce::<NaiveDate>(Some(date.to_string())))?
+    }
+}
+
+impl<'r> Produce<'r, Option<NaiveDate>> for RedshiftSourceParser {
+    type Error = RedshiftSourceError;
+
+    #[throws(RedshiftSourceError)]
+    fn produce(&'r mut self) -> Option<NaiveDate> {
+        let (row, col) = self.next_loc()?;
+        let val = &self
+            .output
+            .records()
+            .ok_or(RedshiftSourceError::GetRecordsFailed)?[row][col];
+
+        match val.is_is_null() {
+            true => None,
+            false => {
+                let date = val
+                    .as_string_value()
+                    .map_err(|e| anyhow!("cannot get string value from field: {:?}", e))?;
+                Some(NaiveDate::parse_from_str(date, "%Y-%m-%d").map_err(|_| {
+                    ConnectorXError::cannot_produce::<NaiveDate>(Some(date.to_string()))
+                })?)
+            }
         }
     }
 }

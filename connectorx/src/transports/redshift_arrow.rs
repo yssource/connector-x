@@ -6,6 +6,7 @@ use crate::{
     sources::redshift::{RedshiftSource, RedshiftSourceError, RedshiftTypeSystem},
     typesystem::TypeConversion,
 };
+use chrono::NaiveDate;
 use thiserror::Error;
 
 #[derive(Error, Debug)]
@@ -29,6 +30,9 @@ impl_transport!(
     systems = RedshiftTypeSystem => ArrowTypeSystem,
     route = RedshiftSource => ArrowDestination,
     mappings = {
-        { Integer[i64]                  => Int64[i64]              | conversion auto }
+        { Integer[i64]                  => Int64[i64]                   | conversion auto }
+        { Float[f64]                    => Float64[f64]                 | conversion auto }
+        { String[&'r str]               => LargeUtf8[String]            | conversion owned }
+        { Date[NaiveDate]               => Date32[NaiveDate]            | conversion auto }
     }
 );
