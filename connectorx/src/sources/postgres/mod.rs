@@ -8,23 +8,25 @@ pub use self::errors::PostgresSourceError;
 pub use connection::rewrite_tls_args;
 pub use typesystem::PostgresTypeSystem;
 
-use crate::constants::DB_BUFFER_SIZE;
+use crate::constants::{DB_BUFFER_SIZE, REDSHIFT_BATCH_SIZE};
 use crate::{
     data_order::DataOrder,
     errors::ConnectorXError,
     sources::{PartitionParser, Produce, Source, SourcePartition},
     sql::{count_query, CXQuery},
+    utils::DummyBox,
 };
 use anyhow::anyhow;
 use chrono::{DateTime, NaiveDate, NaiveDateTime, NaiveTime, Utc};
 use csv::{ReaderBuilder, StringRecord, StringRecordsIntoIter};
 use fehler::{throw, throws};
 use hex::decode;
+use owning_ref::OwningHandle;
 use postgres::{
     binary_copy::{BinaryCopyOutIter, BinaryCopyOutRow},
     fallible_iterator::FallibleIterator,
     tls::{MakeTlsConnect, TlsConnect},
-    Config, CopyOutReader, Row, RowIter, Socket,
+    Config, CopyOutReader, Portal, Row, RowIter, Socket, Transaction,
 };
 use r2d2::{Pool, PooledConnection};
 use r2d2_postgres::PostgresConnectionManager;
@@ -329,10 +331,10 @@ where
 
     #[throws(PostgresSourceError)]
     fn parser(&mut self) -> Self::Parser<'_> {
-        let iter = self
-            .conn
-            .query_raw::<_, bool, _>(self.query.as_str(), vec![])?; // unless reading the data, it seems like issue the query is fast
-        PostgresRawSourceParser::new(iter, &self.schema)
+        let mut trans = self.conn.transaction()?;
+        let portal = trans.bind(self.query.as_str(), &[])?;
+
+        PostgresRawSourceParser::new(trans, portal, &self.schema)?
     }
 
     fn nrows(&self) -> usize {
@@ -857,7 +859,10 @@ impl<'r, 'a> Produce<'r, Option<Value>> for PostgresCSVSourceParser<'a> {
 }
 
 pub struct PostgresRawSourceParser<'a> {
-    iter: RowIter<'a>,
+    // trans: OwningHandle<Transaction<'a>, DummyBox<RowIter<'a>>>,
+    trans: Transaction<'a>,
+    portal: Portal,
+    // iter: RowIter<'a>,
     rowbuf: Vec<Row>,
     ncols: usize,
     current_col: usize,
@@ -865,10 +870,27 @@ pub struct PostgresRawSourceParser<'a> {
 }
 
 impl<'a> PostgresRawSourceParser<'a> {
-    pub fn new(iter: RowIter<'a>, schema: &[PostgresTypeSystem]) -> Self {
+    #[throws(PostgresSourceError)]
+    pub fn new(mut trans: Transaction<'a>, portal: Portal, schema: &[PostgresTypeSystem]) -> Self {
+        // let iter = trans.query_portal_raw(&portal, REDSHIFT_BATCH_SIZE as i32)?;
+        // let rows = trans.query_portal(&portal, REDSHIFT_BATCH_SIZE as i32)?;
+        // let trans: OwningHandle<Box<Transaction<'a>>, DummyBox<RowIter<'a>>> =
+        //     OwningHandle::new_with_fn(
+        //         Box::new(transaction),
+        //         |transaction: *const Transaction<'a>| unsafe {
+        //             DummyBox(
+        //                 (&mut *(transaction as *mut Transaction<'_>))
+        //                     .query_portal_raw(&portal, REDSHIFT_BATCH_SIZE as i32)
+        //                     .unwrap(),
+        //             )
+        //         },
+        //     );
+
         Self {
-            iter,
-            rowbuf: Vec::with_capacity(DB_BUFFER_SIZE),
+            trans,
+            portal,
+            // rowbuf: Vec::with_capacity(DB_BUFFER_SIZE),
+            rowbuf: Vec::with_capacity(REDSHIFT_BATCH_SIZE),
             ncols: schema.len(),
             current_row: 0,
             current_col: 0,
@@ -893,16 +915,26 @@ impl<'a> PartitionParser<'a> for PostgresRawSourceParser<'a> {
         if !self.rowbuf.is_empty() {
             self.rowbuf.drain(..);
         }
-        for _ in 0..DB_BUFFER_SIZE {
-            if let Some(row) = self.iter.next()? {
-                self.rowbuf.push(row);
-            } else {
-                break;
-            }
-        }
+
+        self.rowbuf = self
+            .trans
+            .query_portal(&self.portal, REDSHIFT_BATCH_SIZE as i32)?;
+        // let mut i = 0;
+        // while i < DB_BUFFER_SIZE {
+        //     if let Some(row) = self.iter.next()? {
+        //         self.rowbuf.push(row);
+        //         i = i + 1;
+        //     } else {
+        //         let iter = self
+        //             .trans
+        //             .query_portal_raw(&self.portal, REDSHIFT_BATCH_SIZE as i32)?;
+        //         break;
+        //     }
+        // }
         self.current_row = 0;
         self.current_col = 0;
-        (self.rowbuf.len(), self.rowbuf.len() < DB_BUFFER_SIZE)
+        (self.rowbuf.len(), self.rowbuf.len() < REDSHIFT_BATCH_SIZE)
+        // (self.rowbuf.len(), self.rowbuf.len() < DB_BUFFER_SIZE)
     }
 }
 
