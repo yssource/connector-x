@@ -18,4 +18,4 @@ pub const DB_BUFFER_SIZE: usize = 32;
 #[cfg(any(feature = "src_oracle"))]
 pub const ORACLE_ARRAY_SIZE: u32 = (1 * KILO) as u32;
 
-pub const REDSHIFT_BATCH_SIZE: usize = 1000;
+pub const REDSHIFT_BATCH_SIZE: usize = 60000000;
