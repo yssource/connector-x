@@ -24,7 +24,7 @@ use postgres::{
     binary_copy::{BinaryCopyOutIter, BinaryCopyOutRow},
     fallible_iterator::FallibleIterator,
     tls::{MakeTlsConnect, TlsConnect},
-    Config, CopyOutReader, Row, RowIter, Socket,
+    Config, CopyOutReader, Row, SimpleQueryMessage, Socket,
 };
 use r2d2::{Pool, PooledConnection};
 use r2d2_postgres::PostgresConnectionManager;
@@ -319,7 +319,7 @@ where
     <C::TlsConnect as TlsConnect<Socket>>::Future: Send,
 {
     type TypeSystem = PostgresTypeSystem;
-    type Parser<'a> = PostgresRawSourceParser<'a>;
+    type Parser<'a> = PostgresRawSourceParser;
     type Error = PostgresSourceError;
 
     #[throws(PostgresSourceError)]
@@ -329,10 +329,8 @@ where
 
     #[throws(PostgresSourceError)]
     fn parser(&mut self) -> Self::Parser<'_> {
-        let iter = self
-            .conn
-            .query_raw::<_, bool, _>(self.query.as_str(), vec![])?; // unless reading the data, it seems like issue the query is fast
-        PostgresRawSourceParser::new(iter, &self.schema)
+        let rows = self.conn.simple_query(self.query.as_str())?; // unless reading the data, it seems like issue the query is fast
+        PostgresRawSourceParser::new(rows, &self.schema)
     }
 
     fn nrows(&self) -> usize {
@@ -856,19 +854,17 @@ impl<'r, 'a> Produce<'r, Option<Value>> for PostgresCSVSourceParser<'a> {
     }
 }
 
-pub struct PostgresRawSourceParser<'a> {
-    iter: RowIter<'a>,
-    rowbuf: Vec<Row>,
+pub struct PostgresRawSourceParser {
+    rows: Vec<SimpleQueryMessage>,
     ncols: usize,
     current_col: usize,
     current_row: usize,
 }
 
-impl<'a> PostgresRawSourceParser<'a> {
-    pub fn new(iter: RowIter<'a>, schema: &[PostgresTypeSystem]) -> Self {
+impl<'a> PostgresRawSourceParser {
+    pub fn new(rows: Vec<SimpleQueryMessage>, schema: &[PostgresTypeSystem]) -> Self {
         Self {
-            iter,
-            rowbuf: Vec::with_capacity(DB_BUFFER_SIZE),
+            rows,
             ncols: schema.len(),
             current_row: 0,
             current_col: 0,
@@ -884,51 +880,90 @@ impl<'a> PostgresRawSourceParser<'a> {
     }
 }
 
-impl<'a> PartitionParser<'a> for PostgresRawSourceParser<'a> {
+impl<'a> PartitionParser<'a> for PostgresRawSourceParser {
     type TypeSystem = PostgresTypeSystem;
     type Error = PostgresSourceError;
 
     #[throws(PostgresSourceError)]
     fn fetch_next(&mut self) -> (usize, bool) {
-        if !self.rowbuf.is_empty() {
-            self.rowbuf.drain(..);
-        }
-        for _ in 0..DB_BUFFER_SIZE {
-            if let Some(row) = self.iter.next()? {
-                self.rowbuf.push(row);
-            } else {
-                break;
-            }
-        }
         self.current_row = 0;
         self.current_col = 0;
-        (self.rowbuf.len(), self.rowbuf.len() < DB_BUFFER_SIZE)
+        (self.rows.len() - 1, true) // last message is command complete
     }
+}
+
+macro_rules! impl_produce_unimplemented {
+    ($($t: ty,)+) => {
+        $(
+            impl<'r, 'a> Produce<'r, $t> for PostgresRawSourceParser {
+                type Error = PostgresSourceError;
+
+                #[throws(PostgresSourceError)]
+                fn produce(&'r mut self) -> $t {
+                   unimplemented!("not implemented!");
+                }
+            }
+
+            impl<'r, 'a> Produce<'r, Option<$t>> for PostgresRawSourceParser {
+                type Error = PostgresSourceError;
+
+                #[throws(PostgresSourceError)]
+                fn produce(&'r mut self) -> Option<$t> {
+                   unimplemented!("not implemented!");
+                }
+            }
+        )+
+    };
 }
 
 macro_rules! impl_produce {
     ($($t: ty,)+) => {
         $(
-            impl<'r, 'a> Produce<'r, $t> for PostgresRawSourceParser<'a> {
+            impl<'r> Produce<'r, $t> for PostgresRawSourceParser {
                 type Error = PostgresSourceError;
 
                 #[throws(PostgresSourceError)]
                 fn produce(&'r mut self) -> $t {
                     let (ridx, cidx) = self.next_loc()?;
-                    let row = &self.rowbuf[ridx];
-                    let val = row.try_get(cidx)?;
+                    let val = match &self.rows[ridx] {
+                        SimpleQueryMessage::Row(row) => match row.try_get(cidx)? {
+                            Some(s) => s
+                                .parse()
+                                .map_err(|_| ConnectorXError::cannot_produce::<$t>(Some(s.into())))?,
+                            None => panic!("get NULL for non-NULL column"),
+                        },
+                        SimpleQueryMessage::CommandComplete(c) => {
+                            panic!("get command: {}", c);
+                        }
+                        _ => {
+                            panic!("what?");
+                        }
+                    };
                     val
                 }
             }
 
-            impl<'r, 'a> Produce<'r, Option<$t>> for PostgresRawSourceParser<'a> {
+            impl<'r, 'a> Produce<'r, Option<$t>> for PostgresRawSourceParser {
                 type Error = PostgresSourceError;
 
                 #[throws(PostgresSourceError)]
                 fn produce(&'r mut self) -> Option<$t> {
                     let (ridx, cidx) = self.next_loc()?;
-                    let row = &self.rowbuf[ridx];
-                    let val = row.try_get(cidx)?;
+                    let val = match &self.rows[ridx] {
+                        SimpleQueryMessage::Row(row) => match row.try_get(cidx)? {
+                            Some(s) => Some(
+                                s.parse()
+                                    .map_err(|_| ConnectorXError::cannot_produce::<$t>(Some(s.into())))?,
+                            ),
+                            None => None,
+                        },
+                        SimpleQueryMessage::CommandComplete(c) => {
+                            panic!("get command: {}", c);
+                        }
+                        _ => {
+                            panic!("what?");
+                        }
+                    };
                     val
                 }
             }
@@ -936,14 +971,125 @@ macro_rules! impl_produce {
     };
 }
 
-impl_produce!(
-    i8,
-    i16,
-    i32,
-    i64,
-    f32,
-    f64,
-    Decimal,
+impl_produce!(i8, i16, i32, i64, f32, f64, Decimal, Uuid,);
+
+impl<'r> Produce<'r, &'r str> for PostgresRawSourceParser {
+    type Error = PostgresSourceError;
+
+    #[throws(PostgresSourceError)]
+    fn produce(&'r mut self) -> &'r str {
+        let (ridx, cidx) = self.next_loc()?;
+        let val = match &self.rows[ridx] {
+            SimpleQueryMessage::Row(row) => match row.try_get(cidx)? {
+                Some(s) => s,
+                None => panic!("get NULL for non-NULL column"),
+            },
+            SimpleQueryMessage::CommandComplete(c) => {
+                panic!("get command: {}", c);
+            }
+            _ => {
+                panic!("what?");
+            }
+        };
+        val
+    }
+}
+
+impl<'r, 'a> Produce<'r, Option<&'r str>> for PostgresRawSourceParser {
+    type Error = PostgresSourceError;
+
+    #[throws(PostgresSourceError)]
+    fn produce(&'r mut self) -> Option<&'r str> {
+        let (ridx, cidx) = self.next_loc()?;
+        let val = match &self.rows[ridx] {
+            SimpleQueryMessage::Row(row) => row.try_get(cidx)?,
+            SimpleQueryMessage::CommandComplete(c) => {
+                panic!("get command: {}", c);
+            }
+            _ => {
+                panic!("what?");
+            }
+        };
+        val
+    }
+}
+
+impl<'r> Produce<'r, NaiveDate> for PostgresRawSourceParser {
+    type Error = PostgresSourceError;
+
+    #[throws(PostgresSourceError)]
+    fn produce(&'r mut self) -> NaiveDate {
+        let (ridx, cidx) = self.next_loc()?;
+        let val = match &self.rows[ridx] {
+            SimpleQueryMessage::Row(row) => match row.try_get(cidx)? {
+                Some(s) => NaiveDate::parse_from_str(s, "%Y-%m-%d")
+                    .map_err(|_| ConnectorXError::cannot_produce::<NaiveDate>(Some(s.into())))?,
+                None => panic!("get NULL for non-NULL column"),
+            },
+            SimpleQueryMessage::CommandComplete(c) => {
+                panic!("get command: {}", c);
+            }
+            _ => {
+                panic!("what?");
+            }
+        };
+        val
+    }
+}
+
+impl<'r> Produce<'r, Option<NaiveDate>> for PostgresRawSourceParser {
+    type Error = PostgresSourceError;
+
+    #[throws(PostgresSourceError)]
+    fn produce(&'r mut self) -> Option<NaiveDate> {
+        let (ridx, cidx) = self.next_loc()?;
+        let val = match &self.rows[ridx] {
+            SimpleQueryMessage::Row(row) => match row.try_get(cidx)? {
+                Some(s) => Some(NaiveDate::parse_from_str(s, "%Y-%m-%d").map_err(|_| {
+                    ConnectorXError::cannot_produce::<Option<NaiveDate>>(Some(s.into()))
+                })?),
+                None => None,
+            },
+            SimpleQueryMessage::CommandComplete(c) => {
+                panic!("get command: {}", c);
+            }
+            _ => {
+                panic!("what?");
+            }
+        };
+        val
+    }
+}
+
+// impl<'r, 'a> Produce<'r, NaiveDate> for PostgresCSVSourceParser<'a> {
+//     type Error = PostgresSourceError;
+
+//     #[throws(PostgresSourceError)]
+//     fn produce(&mut self) -> NaiveDate {
+//         let (ridx, cidx) = self.next_loc()?;
+//         NaiveDate::parse_from_str(&self.rowbuf[ridx][cidx], "%Y-%m-%d").map_err(|_| {
+//             ConnectorXError::cannot_produce::<NaiveDate>(Some(self.rowbuf[ridx][cidx].into()))
+//         })?
+//     }
+// }
+
+// impl<'r, 'a> Produce<'r, Option<NaiveDate>> for PostgresCSVSourceParser<'a> {
+//     type Error = PostgresSourceError;
+
+//     #[throws(PostgresSourceError)]
+//     fn produce(&mut self) -> Option<NaiveDate> {
+//         let (ridx, cidx) = self.next_loc()?;
+//         match &self.rowbuf[ridx][cidx][..] {
+//             "" => None,
+//             v => Some(
+//                 NaiveDate::parse_from_str(v, "%Y-%m-%d")
+//                     .map_err(|_| ConnectorXError::cannot_produce::<NaiveDate>(Some(v.into())))?,
+//             ),
+//         }
+//     }
+// }
+
+impl_produce_unimplemented!(
     Vec<i16>,
     Vec<i32>,
     Vec<i64>,
@@ -951,13 +1097,12 @@ impl_produce!(
     Vec<f64>,
     Vec<Decimal>,
     bool,
-    &'r str,
+    // &'r str,
     Vec<u8>,
     NaiveTime,
     NaiveDateTime,
     DateTime<Utc>,
-    NaiveDate,
-    Uuid,
+    // NaiveDate,
     Value,
     HashMap<String, Option<String>>,
 );
