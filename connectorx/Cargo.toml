@@ -35,17 +35,18 @@ openssl = {version = "0.10", optional = true}
 oracle = {version = "0.5", optional = true}
 owning_ref = {version = "0.4", optional = true}
 polars = {version = "0.20", optional = true}
-postgres = {version = "0.19", features = ["with-chrono-0_4", "with-uuid-0_8", "with-serde_json-1"], optional = true}
-postgres-native-tls = {version = "0.5", optional = true}
-postgres-openssl = {version = "0.5", optional = true}
+postgres = {path = "../../rust-postgres/postgres", features = ["with-chrono-0_4", "with-uuid-0_8", "with-serde_json-1"], optional = true}
+postgres-native-tls = {path = "../../rust-postgres/postgres-native-tls", optional = true}
+postgres-openssl = {path = "../../rust-postgres/postgres-openssl", optional = true}
 r2d2 = {version = "0.8", optional = true}
 r2d2-oracle = {version = "0.5.0", features = ["chrono"], optional = true}
 r2d2_mysql = {version = "21.0", optional = true}
-r2d2_postgres = {version = "0.18.1", optional = true}
+r2d2_postgres = {path = "../../r2d2-postgres", optional = true}
 r2d2_sqlite = {version = "0.18", optional = true}
 regex = {version = "1", optional = true}
 rusqlite = {version = "0.25", features = ["column_decltype", "chrono", "bundled"], optional = true}
-rust_decimal = {version = "1", features = ["db-postgres"], optional = true}
+rust_decimal_my = {package = "rust_decimal", path = "../../rust-decimal", features = ["db-postgres"], optional = true}
+rust_decimal = {version = "1", optional = true}
 serde_json = {version = "1", optional = true}
 tiberius = {version = "0.5", features = ["rust_decimal", "chrono"], optional = true}
 tokio = {version = "1", features = ["full"], optional = true}
@@ -86,7 +87,7 @@ src_postgres = [
   "hex",
   "serde_json",
   "uuid",
-  "rust_decimal",
+  "rust_decimal_my",
   "num-traits",
   "chrono",
   "r2d2",

@@ -12,7 +12,7 @@ use chrono::{DateTime, NaiveDate, NaiveDateTime, NaiveTime, Utc};
 use num_traits::ToPrimitive;
 use postgres::NoTls;
 use postgres_openssl::MakeTlsConnector;
-use rust_decimal::Decimal;
+use rust_decimal_my::Decimal;
 use std::marker::PhantomData;
 use thiserror::Error;
 use uuid::Uuid;

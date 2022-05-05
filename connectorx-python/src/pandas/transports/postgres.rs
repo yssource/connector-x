@@ -10,7 +10,7 @@ use connectorx::{
 };
 use postgres::NoTls;
 use postgres_openssl::MakeTlsConnector;
-use rust_decimal::prelude::*;
+use rust_decimal_my::prelude::*;
 use serde_json::{to_string, Value};
 use std::collections::HashMap;
 use std::marker::PhantomData;

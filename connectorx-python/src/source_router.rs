@@ -20,8 +20,7 @@ use fehler::{throw, throws};
 use gcp_bigquery_client;
 use r2d2_mysql::mysql::{prelude::Queryable, Opts, Pool, Row};
 use rusqlite::{types::Type, Connection};
-use rust_decimal::{prelude::ToPrimitive, Decimal};
-use rust_decimal_macros::dec;
+use rust_decimal_my::{prelude::ToPrimitive, Decimal};
 use sqlparser::dialect::{MsSqlDialect, MySqlDialect, PostgreSqlDialect, SQLiteDialect};
 use std::convert::TryFrom;
 use std::sync::Arc;
@@ -173,8 +172,8 @@ fn pg_get_partition_range(conn: &Url, query: &str, col: &str) -> (i64, i64) {
             let min_v: Option<Decimal> = row.get(0);
             let max_v: Option<Decimal> = row.get(1);
             (
-                min_v.unwrap_or(dec!(0.0)).to_i64().unwrap_or(0),
-                max_v.unwrap_or(dec!(0.0)).to_i64().unwrap_or(0),
+                min_v.unwrap_or(Decimal::new(0, 1)).to_i64().unwrap_or(0),
+                max_v.unwrap_or(Decimal::new(0, 1)).to_i64().unwrap_or(0),
             )
         }
         _ => throw!(anyhow!(

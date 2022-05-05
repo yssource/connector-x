@@ -14,23 +14,22 @@ use crate::{
     errors::ConnectorXError,
     sources::{PartitionParser, Produce, Source, SourcePartition},
     sql::{count_query, CXQuery},
-    utils::DummyBox,
 };
 use anyhow::anyhow;
 use chrono::{DateTime, NaiveDate, NaiveDateTime, NaiveTime, Utc};
 use csv::{ReaderBuilder, StringRecord, StringRecordsIntoIter};
 use fehler::{throw, throws};
 use hex::decode;
-use owning_ref::OwningHandle;
+use log::debug;
 use postgres::{
     binary_copy::{BinaryCopyOutIter, BinaryCopyOutRow},
     fallible_iterator::FallibleIterator,
     tls::{MakeTlsConnect, TlsConnect},
-    Config, CopyOutReader, Portal, Row, RowIter, Socket, Transaction,
+    Config, CopyOutReader, Portal, Row, Socket, Transaction,
 };
 use r2d2::{Pool, PooledConnection};
 use r2d2_postgres::PostgresConnectionManager;
-use rust_decimal::Decimal;
+use rust_decimal_my::Decimal;
 use serde_json::{from_str, Value};
 use sqlparser::dialect::PostgreSqlDialect;
 use std::collections::HashMap;
@@ -558,6 +557,7 @@ macro_rules! impl_csv_produce {
 }
 
 impl_csv_produce!(i8, i16, i32, i64, f32, f64, Decimal, Uuid,);
+// impl_csv_produce!(i8, i16, i32, i64, f32, f64, Uuid,);
 
 macro_rules! impl_csv_vec_produce {
     ($($t: ty,)+) => {
@@ -611,6 +611,7 @@ macro_rules! impl_csv_vec_produce {
 }
 
 impl_csv_vec_produce!(i8, i16, i32, i64, f32, f64, Decimal,);
+// impl_csv_vec_produce!(i8, i16, i32, i64, f32, f64,);
 
 impl<'r, 'a> Produce<'r, HashMap<String, Option<String>>> for PostgresCSVSourceParser<'a> {
     type Error = PostgresSourceError;
@@ -871,7 +872,7 @@ pub struct PostgresRawSourceParser<'a> {
 
 impl<'a> PostgresRawSourceParser<'a> {
     #[throws(PostgresSourceError)]
-    pub fn new(mut trans: Transaction<'a>, portal: Portal, schema: &[PostgresTypeSystem]) -> Self {
+    pub fn new(trans: Transaction<'a>, portal: Portal, schema: &[PostgresTypeSystem]) -> Self {
         // let iter = trans.query_portal_raw(&portal, REDSHIFT_BATCH_SIZE as i32)?;
         // let rows = trans.query_portal(&portal, REDSHIFT_BATCH_SIZE as i32)?;
         // let trans: OwningHandle<Box<Transaction<'a>>, DummyBox<RowIter<'a>>> =
@@ -931,6 +932,7 @@ impl<'a> PartitionParser<'a> for PostgresRawSourceParser<'a> {
         //         break;
         //     }
         // }
+        debug!("get new rows: {}", self.rowbuf.len());
         self.current_row = 0;
         self.current_col = 0;
         (self.rowbuf.len(), self.rowbuf.len() < REDSHIFT_BATCH_SIZE)

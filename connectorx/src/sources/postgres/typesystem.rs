@@ -1,6 +1,6 @@
 use chrono::{DateTime, NaiveDate, NaiveDateTime, NaiveTime, Utc};
 use postgres::types::Type;
-use rust_decimal::Decimal;
+use rust_decimal_my::Decimal;
 use serde_json::Value;
 use std::collections::HashMap;
 use uuid::Uuid;

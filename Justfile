@@ -20,6 +20,13 @@ test-feature-gate:
     cargo c --features dst_arrow
     cargo c --features dst_arrow2
 
+test-redshift:
+    # cargo run --features src_redshift --features dst_arrow --example test_cx
+    cargo run --features src_redshift --features dst_arrow --example test_redshift
+
+test-cursor:
+    cargo run --features src_postgres --features dst_arrow --example test_cursor
+
 bootstrap-python:
     cp README.md connectorx-python/README.md
     cp LICENSE connectorx-python/LICENSE

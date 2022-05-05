@@ -437,7 +437,7 @@ dependencies = [
  "percent-encoding",
  "pin-project",
  "tokio",
- "tokio-util",
+ "tokio-util 0.6.9",
  "tracing",
 ]
 
@@ -565,7 +565,7 @@ dependencies = [
  "thiserror",
  "tiberius",
  "tokio",
- "tokio-util",
+ "tokio-util 0.6.9",
 ]
 
 [[package]]
@@ -891,7 +891,8 @@ dependencies = [
  "r2d2_sqlite",
  "rayon",
  "rusqlite",
- "rust_decimal",
+ "rust_decimal 1.22.0",
+ "rust_decimal 1.23.1",
  "serde_json",
  "sqlparser",
  "thiserror",
@@ -940,14 +941,15 @@ dependencies = [
  "r2d2_mysql",
  "rayon",
  "rusqlite",
- "rust_decimal",
+ "rust_decimal 1.22.0",
+ "rust_decimal 1.23.1",
  "rust_decimal_macros",
  "serde_json",
  "sqlparser",
  "thiserror",
  "tiberius",
  "tokio",
- "tokio-util",
+ "tokio-util 0.6.9",
  "url",
  "urlencoding",
  "uuid",
@@ -1705,7 +1707,7 @@ dependencies = [
  "indexmap",
  "slab",
  "tokio",
- "tokio-util",
+ "tokio-util 0.6.9",
  "tracing",
 ]
 
@@ -2361,7 +2363,7 @@ dependencies = [
  "num-traits",
  "rand 0.8.5",
  "regex",
- "rust_decimal",
+ "rust_decimal 1.22.0",
  "saturating",
  "serde",
  "serde_json",
@@ -2999,9 +3001,7 @@ dependencies = [
 
 [[package]]
 name = "postgres"
-version = "0.19.2"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "eb76d6535496f633fa799bb872ffb4790e9cbdedda9d35564ca0252f930c0dd5"
+version = "0.19.3"
 dependencies = [
  "bytes",
  "fallible-iterator",
@@ -3014,8 +3014,6 @@ dependencies = [
 [[package]]
 name = "postgres-native-tls"
 version = "0.5.0"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "2d442770e2b1e244bb5eb03b31c79b65bb2568f413b899eaba850fa945a65954"
 dependencies = [
  "futures",
  "native-tls",
@@ -3027,8 +3025,6 @@ dependencies = [
 [[package]]
 name = "postgres-openssl"
 version = "0.5.0"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "1de0ea6504e07ca78355a6fb88ad0f36cafe9e696cbc6717f16a207f3a60be72"
 dependencies = [
  "futures",
  "openssl",
@@ -3039,9 +3035,7 @@ dependencies = [
 
 [[package]]
 name = "postgres-protocol"
-version = "0.6.3"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "79ec03bce71f18b4a27c4c64c6ba2ddf74686d69b91d8714fb32ead3adaed713"
+version = "0.6.4"
 dependencies = [
  "base64",
  "byteorder",
@@ -3057,9 +3051,7 @@ dependencies = [
 
 [[package]]
 name = "postgres-types"
-version = "0.2.2"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "04619f94ba0cc80999f4fc7073607cb825bc739a883cb6d20900fc5e009d6b0d"
+version = "0.2.3"
 dependencies = [
  "bytes",
  "chrono",
@@ -3276,8 +3268,6 @@ dependencies = [
 [[package]]
 name = "r2d2_postgres"
 version = "0.18.1"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "7029c56be658cb54f321e0bee597810ee16796b735fa2559d7056bf06b12230b"
 dependencies = [
  "postgres",
  "r2d2",
@@ -3537,6 +3527,15 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "d37baa70cf8662d2ba1c1868c5983dda16ef32b105cce41fb5c47e72936a90b3"
 dependencies = [
  "arrayvec 0.7.2",
+ "num-traits",
+ "serde",
+]
+
+[[package]]
+name = "rust_decimal"
+version = "1.23.1"
+dependencies = [
+ "arrayvec 0.7.2",
  "byteorder",
  "bytes",
  "num-traits",
@@ -3546,12 +3545,10 @@ dependencies = [
 
 [[package]]
 name = "rust_decimal_macros"
-version = "1.22.0"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "184abaf7b434800e1a5a8aad3ebc8cd7498df33af72d65371d797a264713a59b"
+version = "1.23.1"
 dependencies = [
  "quote",
- "rust_decimal",
+ "rust_decimal 1.23.1",
 ]
 
 [[package]]
@@ -4188,7 +4185,7 @@ dependencies = [
  "opentls",
  "pin-project-lite",
  "pretty-hex",
- "rust_decimal",
+ "rust_decimal 1.22.0",
  "thiserror",
  "tracing",
  "uuid",
@@ -4334,9 +4331,7 @@ dependencies = [
 
 [[package]]
 name = "tokio-postgres"
-version = "0.7.5"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "4b6c8b33df661b548dcd8f9bf87debb8c56c05657ed291122e1188698c2ece95"
+version = "0.7.6"
 dependencies = [
  "async-trait",
  "byteorder",
@@ -4344,7 +4339,7 @@ dependencies = [
  "fallible-iterator",
  "futures",
  "log",
- "parking_lot 0.11.2",
+ "parking_lot 0.12.0",
  "percent-encoding",
  "phf",
  "pin-project-lite",
@@ -4352,7 +4347,7 @@ dependencies = [
  "postgres-types",
  "socket2",
  "tokio",
- "tokio-util",
+ "tokio-util 0.7.1",
 ]
 
 [[package]]
@@ -4401,6 +4396,20 @@ dependencies = [
  "log",
  "pin-project-lite",
  "tokio",
+]
+
+[[package]]
+name = "tokio-util"
+version = "0.7.1"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "0edfdeb067411dba2044da6d1cb2df793dd35add7888d73c16e3381ded401764"
+dependencies = [
+ "bytes",
+ "futures-core",
+ "futures-sink",
+ "pin-project-lite",
+ "tokio",
+ "tracing",
 ]
 
 [[package]]
